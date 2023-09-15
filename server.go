@@ -1,42 +1,42 @@
 package main
 
 import (
-	"jindamanee2544/review-service/httpServer"
-	"log"
-	"net/http"
-	"os"
-	"os/signal"
-	"syscall"
+	"JinnnDamanee/review-service/db"
+	"JinnnDamanee/review-service/httpServer"
+	"JinnnDamanee/review-service/internal/repo"
+	"JinnnDamanee/review-service/internal/service"
 
-	"github.com/labstack/echo/v4"
+	"log"
+
+	"gorm.io/gorm"
 )
 
+type User struct {
+	gorm.Model
+	Name  string
+	Email string
+	Age   int
+}
+
 type Review struct {
-	ReviewID   int    `json:"review_id"`
-	ReviewName string `json:"review_name"`
+	gorm.Model
+	text string
 }
 
 func main() {
-	s := httpServer.NewHTTPServer()
+	db, err := db.NewDatabase()
+	if err != nil {
+		log.Fatal(err)
+	}
 
-	s.Server.GET("/review", func(c echo.Context) error {
-		log.Print("GET /review")
-		r := Review{
-			ReviewID:   1,
-			ReviewName: "review name",
-		}
+	reviewRepo := repo.NewReviewRepository(db.Gorm)
+	reviewService := service.NewReviewService(reviewRepo)
+	s := httpServer.NewHTTPServer(reviewService)
+	s.InitRouter()
 
-		return c.JSON(http.StatusOK, r)
-	})
+	if err != nil {
+		log.Fatal(err)
+	}
 
-	sig := make(chan os.Signal, 1)
-	signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
-
-	go func() {
-		s.Start()
-	}()
-
-	<-sig
-
-	s.Shutdown()
+	s.SetUpShutdown()
 }

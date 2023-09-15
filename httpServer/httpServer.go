@@ -1,20 +1,26 @@
 package httpServer
 
 import (
+	"JinnnDamanee/review-service/internal/service"
 	"context"
 	"log"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/labstack/echo/v4"
 )
 
 type httpServer struct {
-	Server *echo.Echo
+	Server  *echo.Echo
+	Service *service.ReviewService
 }
 
-func NewHTTPServer() *httpServer {
+func NewHTTPServer(s *service.ReviewService) *httpServer {
 	return &httpServer{
-		Server: echo.New(),
+		Server:  echo.New(),
+		Service: s,
 	}
 }
 
@@ -27,6 +33,19 @@ func (s *httpServer) Start() {
 	}()
 }
 
+func (s *httpServer) SetUpShutdown() {
+	sig := make(chan os.Signal, 1)
+	signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
+
+	go func() {
+		s.Start()
+	}()
+
+	<-sig
+
+	s.Shutdown()
+}
+
 func (s *httpServer) Shutdown() {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -34,4 +53,12 @@ func (s *httpServer) Shutdown() {
 		log.Printf("server shutdown failed: %v", err)
 	}
 	log.Print("Gracefully shutdown the server")
+}
+
+func (s *httpServer) InitRouter() {
+	s.Server.GET("/review", s.Service.GetAllReviews)
+	s.Server.GET("/review/:id", s.Service.GetReviewByID)
+	s.Server.POST("/review", s.Service.CreateReview)
+	s.Server.PUT("/review/:id", s.Service.UpdateReviewByID)
+	s.Server.DELETE("/review/:id", s.Service.DeleteReviewByID)
 }
